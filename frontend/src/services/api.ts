@@ -6,6 +6,7 @@
 import type {
   HealthResponse,
   IncidentRecord,
+  LifecycleState,
   TriageInput,
   TriageResponse,
 } from "../types";
@@ -38,4 +39,32 @@ export async function getHistory(limit = 20): Promise<IncidentRecord[]> {
 
 export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/api/health");
+}
+
+export async function advanceLifecycle(
+  incidentId: string,
+  toState: LifecycleState,
+  actor: string = "demo",
+  evidence: string = "",
+): Promise<{
+  success: boolean;
+  incident_id: string;
+  previous_state: LifecycleState;
+  new_state: LifecycleState;
+  ledger: unknown[];
+}> {
+  return request(`/api/triage/${incidentId}/advance`, {
+    method: "POST",
+    body: JSON.stringify({ to_state: toState, actor, evidence }),
+  });
+}
+
+export async function confirmContradiction(
+  incidentId: string,
+  correction: string,
+): Promise<{ success: boolean; message: string }> {
+  return request(`/api/triage/${incidentId}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ correction }),
+  });
 }

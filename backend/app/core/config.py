@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     FIRESTORE_CREDENTIALS_PATH: str = ""
     FIRESTORE_PROJECT_ID: str = ""
 
+    # LLM provider: "gemini" (production) or "local" (OpenAI-compatible dev server)
+    LLM_PROVIDER: str = "gemini"
+    OPENAI_BASE_URL: str = "http://127.0.0.1:8081/openai/v1"
+    OPENAI_API_KEY: str = "sk-gemini"
+    OPENAI_MODEL: str = ""
+
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     BACKEND_ENV: str = "development"

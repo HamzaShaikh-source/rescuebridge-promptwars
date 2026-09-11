@@ -11,6 +11,25 @@ export type Escalation =
   | "SELF_CARE";
 export type VerificationStatus = "VERIFIED" | "PARTIAL" | "CONFLICT";
 
+export type LifecycleState =
+  | "DRAFT"
+  | "VERIFIED"
+  | "SENT"
+  | "ACKNOWLEDGED"
+  | "ASSIGNED"
+  | "ARRIVING"
+  | "CLOSED"
+  | "NO_ACK"
+  | "REJECTED"
+  | "STALE_LOCATION";
+
+export interface LifecycleEntry {
+  state: LifecycleState;
+  actor: string;
+  timestamp: string;
+  evidence: string;
+}
+
 export interface GeoLocation {
   lat: number;
   lng: number;
@@ -44,6 +63,7 @@ export interface Verification {
   checks_done: VerificationCheck[];
   contradictions: string[];
   uncertainties: string[];
+  confirm_back_question?: string | null;
 }
 
 export interface HandoffPacket {
@@ -109,4 +129,6 @@ export interface IncidentRecord {
   verification_status: VerificationStatus;
   input_types_used: string[];
   triage: TriageOutput;
+  lifecycle: LifecycleState;
+  ledger: LifecycleEntry[];
 }

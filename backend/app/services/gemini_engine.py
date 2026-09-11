@@ -228,34 +228,48 @@ def _build_triage_output(
     inp: TriageInput,
     verification_from_signals: Optional[dict] = None,
 ) -> TriageOutput:
-    """Convert Gemini's raw JSON dict into a validated TriageOutput."""
+    """Convert Gemini's raw JSON dict into a validated TriageOutput.
+
+    Hardened against partial LLM output — every required nested field is
+    backfilled or defaulted so a partial response never produces a 500.
+    """
     incident_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    # Build handoff packet, filling in fields Gemini might omit
+    # Top-level severity/escalation with safe defaults
+    severity = raw.get("severity", Severity.P2_SERIOUS)
+    escalation = raw.get("escalation", Escalation.CALL_112_IMMEDIATELY)
+
+    # Build handoff packet, filling in ALL fields Gemini might omit
     hp_raw = raw.get("handoff_packet", {})
     hp_raw.setdefault("incident_id", incident_id)
     hp_raw.setdefault("geotag", inp.geolocation.model_dump() if inp.geolocation else None)
     hp_raw.setdefault("timestamp", now)
-    hp_raw.setdefault(
-        "input_types_used",
-        _detect_input_types(inp),
-    )
+    hp_raw.setdefault("input_types_used", _detect_input_types(inp))
+    hp_raw.setdefault("severity", severity)
+    hp_raw.setdefault("recommended_escalation", escalation)
+    hp_raw.setdefault("timeline", [])
+    hp_raw.setdefault("verified_facts", [])
+    hp_raw.setdefault("unverified", [])
     hp = HandoffPacket(**hp_raw)
 
     # Build verification, merging optional external signal verification
     v_raw = raw.get("verification", {})
+    v_raw.setdefault("status", VerificationStatus.PARTIAL)
+    v_raw.setdefault("checks_done", [])
+    v_raw.setdefault("contradictions", [])
+    v_raw.setdefault("uncertainties", [])
     if verification_from_signals:
         v_raw = _merge_verification(v_raw, verification_from_signals)
     verification = Verification(**v_raw)
 
     return TriageOutput(
-        severity=raw["severity"],
-        headline=raw["headline"],
+        severity=severity,
+        headline=raw.get("headline", "Emergency triage in progress"),
         medical_context=MedicalContext(**raw.get("medical_context", {})),
         noise_filtered=raw.get("noise_filtered", []),
-        immediate_actions=raw["immediate_actions"],
-        escalation=raw["escalation"],
+        immediate_actions=raw.get("immediate_actions", ["Call 112 immediately"]),
+        escalation=escalation,
         verification=verification,
         handoff_packet=hp,
         environmental_hazards=raw.get("environmental_hazards", []),
@@ -294,11 +308,146 @@ def _merge_verification(
     return base
 
 
+def _build_user_message_text(inp: TriageInput) -> str:
+    """Build a single user message string from triage input fields.
+
+    Used by both Gemini (as part list) and the local provider (as plain text).
+    """
+    parts: list[str] = []
+    if inp.raw_text:
+        parts.append(f"USER TEXT:\n{inp.raw_text}")
+    if inp.language_tag and inp.language_tag != "auto":
+        parts.append(f"User stated language: {inp.language_tag}")
+    if inp.geolocation:
+        parts.append(f"Location: lat={inp.geolocation.lat}, lng={inp.geolocation.lng}")
+    if inp.weather_notes:
+        parts.append(f"Weather signal: {inp.weather_notes}")
+    if inp.traffic_notes:
+        parts.append(f"Traffic signal: {inp.traffic_notes}")
+    if inp.news_notes:
+        parts.append(f"News signal: {inp.news_notes}")
+    if inp.image_base64:
+        parts.append("[Image provided — describe the scene in the text above]")
+    if inp.audio_base64:
+        parts.append("[Audio voice note provided — transcribed above]")
+    return "\n\n".join(parts) if parts else ""
+
+
+# Cached model name for the local provider
+_local_model_cache: Optional[str] = None
+
+
+async def _discover_local_model(base_url: str, api_key: str) -> str:
+    """Discover a chat-capable model from the local OpenAI-compatible server.
+
+    Caches the result after the first successful call.
+    """
+    global _local_model_cache  # noqa: PLW0603
+    if _local_model_cache:
+        return _local_model_cache
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{base_url}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        models = data.get("data", [])
+        # Prefer models with chat in the name, fall back to first
+        # All models on the local proxy are chat-capable; prefer flash for speed
+        # Skip non-chat models (tts, image-only)
+        all_ids = [m["id"] for m in models]
+        skip = {"tts", "image"}
+        chat_ids = [m for m in all_ids if not any(s in m.lower() for s in skip)]
+        flash = [m for m in chat_ids if "flash" in m.lower()]
+        chosen = flash[0] if flash else (chat_ids[0] if chat_ids else (all_ids[0] if all_ids else ""))
+        if chosen:
+            _local_model_cache = chosen
+            logger.info("Local LLM model discovered: %s", chosen)
+        return chosen
+    except Exception:
+        logger.exception("Failed to discover local model")
+        return ""
+
+
+async def _run_local_triage(
+    inp: TriageInput,
+    signal_verification: Optional[dict] = None,
+) -> TriageOutput:
+    """Run triage using a local OpenAI-compatible server.
+
+    Uses chat.completions.create with json_object response format.
+    Falls back to _fallback_triage on any failure.
+    """
+    from openai import AsyncOpenAI  # type: ignore[import-untyped]
+
+    settings = get_settings()
+    base_url = settings.OPENAI_BASE_URL
+    api_key = settings.OPENAI_API_KEY
+
+    # Discover model if not configured
+    model = settings.OPENAI_MODEL
+    if not model:
+        model = await _discover_local_model(base_url, api_key)
+    if not model:
+        logger.warning("No local model available — falling back to offline triage")
+        return _fallback_triage(inp)
+
+    # Build messages
+    user_text = _build_user_message_text(inp)
+    if not user_text:
+        raise ValueError("Triage input is empty — provide text, audio, or image")
+
+    # Schema instruction for json_object mode
+    schema_hint = json.dumps(TRIAGE_RESPONSE_SCHEMA, indent=2)
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"{TRIAGE_SYSTEM_PROMPT}\n\n"
+                "IMPORTANT: You MUST respond with ONLY valid JSON matching this schema.\n"
+                "No markdown, no explanation, no code fences — just raw JSON.\n\n"
+                f"Schema:\n{schema_hint}"
+            ),
+        },
+        {"role": "user", "content": user_text},
+    ]
+
+    try:
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=4096,
+            response_format={"type": "json_object"},
+        )
+
+        raw_text = response.choices[0].message.content or "{}"
+        raw_dict = json.loads(raw_text)
+    except json.JSONDecodeError:
+        logger.error("Local LLM returned invalid JSON: %s", raw_text[:500])
+        return _fallback_triage(inp)
+    except Exception:
+        logger.exception("Local LLM call failed")
+        return _fallback_triage(inp)
+
+    return _build_triage_output(raw_dict, inp, signal_verification)
+
+
 async def run_triage(
     inp: TriageInput,
     signal_verification: Optional[dict] = None,
 ) -> TriageOutput:
-    """Execute the full Gemini triage pipeline.
+    """Execute the full triage pipeline.
+
+    Routes to the local OpenAI-compatible provider or Gemini based on LLM_PROVIDER.
 
     Args:
         inp: The raw, messy user input.
@@ -310,6 +459,12 @@ async def run_triage(
     """
     settings = get_settings()
 
+    # Route to local provider if configured
+    if settings.LLM_PROVIDER == "local":
+        logger.info("Using local LLM provider at %s", settings.OPENAI_BASE_URL)
+        return await _run_local_triage(inp, signal_verification)
+
+    # Gemini path (production)
     if not settings.GEMINI_API_KEY:
         logger.warning("GEMINI_API_KEY not set — returning fallback triage")
         return _fallback_triage(inp)

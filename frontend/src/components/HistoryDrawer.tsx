@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Clock, ChevronRight, X } from "lucide-react";
-import type { IncidentRecord } from "../types";
+import type { IncidentRecord, LifecycleState } from "../types";
 
 interface HistoryDrawerProps {
   history: IncidentRecord[];
@@ -23,6 +23,32 @@ const VERIFICATION_ICONS: Record<string, string> = {
   VERIFIED: "✓",
   PARTIAL: "~",
   CONFLICT: "!",
+};
+
+const LIFECYCLE_COLORS: Record<LifecycleState, string> = {
+  DRAFT: "text-emergency-muted",
+  VERIFIED: "text-emergency-blue",
+  SENT: "text-emergency-yellow",
+  ACKNOWLEDGED: "text-emergency-green",
+  ASSIGNED: "text-emergency-orange",
+  ARRIVING: "text-emergency-red",
+  CLOSED: "text-emergency-green",
+  NO_ACK: "text-emergency-red",
+  REJECTED: "text-emergency-red",
+  STALE_LOCATION: "text-emergency-yellow",
+};
+
+const LIFECYCLE_LABELS: Record<LifecycleState, string> = {
+  DRAFT: "Draft",
+  VERIFIED: "Verified",
+  SENT: "Sent",
+  ACKNOWLEDGED: "Acknowledged",
+  ASSIGNED: "Assigned",
+  ARRIVING: "Arriving",
+  CLOSED: "Closed",
+  NO_ACK: "No ACK",
+  REJECTED: "Rejected",
+  STALE_LOCATION: "Stale Loc",
 };
 
 function formatDate(iso: string): string {
@@ -100,6 +126,11 @@ export default function HistoryDrawer({ history, onSelect }: HistoryDrawerProps)
                       {VERIFICATION_ICONS[record.verification_status] ?? "?"}{" "}
                       {record.verification_status}
                     </span>
+                    {record.lifecycle && (
+                      <span className={`text-xs font-bold ${LIFECYCLE_COLORS[record.lifecycle] ?? "text-emergency-muted"}`}>
+                        [{LIFECYCLE_LABELS[record.lifecycle] ?? record.lifecycle}]
+                      </span>
+                    )}
                   </div>
                   <p className="font-medium text-sm truncate">{record.headline}</p>
                   <p className="text-xs text-emergency-muted mt-1">

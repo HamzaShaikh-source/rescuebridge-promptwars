@@ -50,6 +50,13 @@ async def get_incident_by_id(incident_id: str) -> Optional[dict[str, Any]]:
     return _memory_store.get(incident_id)
 
 
+async def update_incident(incident_id: str, updates: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Update fields on an existing incident record."""
+    if _is_firestore_available():
+        return await _update_firestore(incident_id, updates)
+    return _update_memory(incident_id, updates)
+
+
 def _save_to_memory(record: dict[str, Any]) -> str:
     """Store incident in memory."""
     record_id = record.get("id", str(len(_memory_store)))
@@ -115,3 +122,30 @@ async def _get_by_id_firestore(incident_id: str) -> Optional[dict[str, Any]]:
     except Exception:
         logger.exception("Firestore get failed — falling back to memory")
         return _memory_store.get(incident_id)
+
+
+def _update_memory(incident_id: str, updates: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Update an incident in the in-memory store."""
+    record = _memory_store.get(incident_id)
+    if not record:
+        return None
+    record.update(updates)
+    return record
+
+
+async def _update_firestore(incident_id: str, updates: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Update an incident in Firestore."""
+    try:
+        from google.cloud import firestore  # type: ignore[import-untyped]
+
+        settings = get_settings()
+        db = firestore.Client(project=settings.FIRESTORE_PROJECT_ID)
+        doc_ref = db.collection("emergency_incidents").document(incident_id)
+        doc_ref.update(updates)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+    except Exception:
+        logger.exception("Firestore update failed — falling back to memory")
+        return _update_memory(incident_id, updates)

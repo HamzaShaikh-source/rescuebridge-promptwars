@@ -36,6 +36,21 @@ class VerificationStatus(str, Enum):
     CONFLICT = "CONFLICT"
 
 
+class LifecycleState(str, Enum):
+    """Incident lifecycle states — closed-loop state machine."""
+
+    DRAFT = "DRAFT"
+    VERIFIED = "VERIFIED"
+    SENT = "SENT"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    ASSIGNED = "ASSIGNED"
+    ARRIVING = "ARRIVING"
+    CLOSED = "CLOSED"
+    NO_ACK = "NO_ACK"
+    REJECTED = "REJECTED"
+    STALE_LOCATION = "STALE_LOCATION"
+
+
 # ── Input ──────────────────────────────────────────────────────────────────
 
 class GeoLocation(BaseModel):
@@ -89,6 +104,10 @@ class Verification(BaseModel):
     checks_done: list[VerificationCheck] = Field(default_factory=list)
     contradictions: list[str] = Field(default_factory=list)
     uncertainties: list[str] = Field(default_factory=list)
+    confirm_back_question: Optional[str] = Field(
+        None,
+        description="Single short question for the caller to resolve a conflict",
+    )
 
 
 class HandoffPacket(BaseModel):
@@ -156,6 +175,17 @@ class NearbyPlace(BaseModel):
 
 # ── History ────────────────────────────────────────────────────────────────
 
+class LifecycleEntry(BaseModel):
+    """Single entry in the incident audit ledger."""
+
+    state: LifecycleState
+    actor: str = Field(..., description="Who triggered the transition")
+    timestamp: str = Field(..., description="ISO-8601 timestamp")
+    evidence: str = Field(
+        "", description="Optional evidence or reason for the transition"
+    )
+
+
 class IncidentRecord(BaseModel):
     id: str
     created_at: str
@@ -164,6 +194,28 @@ class IncidentRecord(BaseModel):
     verification_status: VerificationStatus
     input_types_used: list[str]
     triage: TriageOutput
+    lifecycle: LifecycleState = Field(
+        default=LifecycleState.DRAFT,
+        description="Current lifecycle state",
+    )
+    ledger: list[LifecycleEntry] = Field(
+        default_factory=list,
+        description="Audit trail of state transitions",
+    )
+
+
+class AdvanceRequest(BaseModel):
+    """Request to advance an incident's lifecycle."""
+
+    to_state: LifecycleState
+    actor: str = Field("system", description="Who is advancing the state")
+    evidence: str = Field("", description="Optional evidence")
+
+
+class ConfirmRequest(BaseModel):
+    """Request to confirm or correct a contradiction."""
+
+    correction: str = Field(..., description="The corrected fact from the user")
 
 
 # ── API Response Wrappers ─────────────────────────────────────────────────
@@ -175,6 +227,20 @@ class TriageResponse(BaseModel):
     audio_url: Optional[str] = Field(
         None, description="URL or base64 of spoken instructions"
     )
+
+
+class AdvanceResponse(BaseModel):
+    success: bool = True
+    incident_id: str
+    previous_state: LifecycleState
+    new_state: LifecycleState
+    ledger: list[LifecycleEntry]
+
+
+class ConfirmResponse(BaseModel):
+    success: bool = True
+    triage: TriageOutput
+    message: str = "Contradiction resolved with provided correction"
 
 
 class HealthResponse(BaseModel):

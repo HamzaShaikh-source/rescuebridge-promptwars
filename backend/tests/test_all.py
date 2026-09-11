@@ -568,3 +568,429 @@ class TestIndianEmergencyContext:
         output = _fallback_triage(inp)
         assert "112" in " ".join(output.immediate_actions)
         assert "911" not in " ".join(output.immediate_actions)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 9: Lifecycle State Machine
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestLifecycleTransitions:
+    """Legal and illegal lifecycle transitions."""
+
+    def test_valid_transition_draft_to_verified(self):
+        from app.services.lifecycle import advance_lifecycle, is_valid_transition
+        from app.models.schemas import LifecycleState
+
+        assert is_valid_transition(LifecycleState.DRAFT, LifecycleState.VERIFIED)
+        new_state, entry = advance_lifecycle(
+            LifecycleState.DRAFT, LifecycleState.VERIFIED, "user", "Confirmed facts"
+        )
+        assert new_state == LifecycleState.VERIFIED
+        assert entry.state == LifecycleState.VERIFIED
+        assert entry.actor == "user"
+
+    def test_valid_transition_full_chain(self):
+        from app.services.lifecycle import advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        chain = [
+            (LifecycleState.DRAFT, LifecycleState.VERIFIED),
+            (LifecycleState.VERIFIED, LifecycleState.SENT),
+            (LifecycleState.SENT, LifecycleState.ACKNOWLEDGED),
+            (LifecycleState.ACKNOWLEDGED, LifecycleState.ASSIGNED),
+            (LifecycleState.ASSIGNED, LifecycleState.ARRIVING),
+            (LifecycleState.ARRIVING, LifecycleState.CLOSED),
+        ]
+        current = LifecycleState.DRAFT
+        for from_s, to_s in chain:
+            assert from_s == current
+            current, _ = advance_lifecycle(current, to_s, "system", f"Move to {to_s.value}")
+        assert current == LifecycleState.CLOSED
+
+    def test_invalid_transition_draft_to_closed(self):
+        from app.services.lifecycle import InvalidTransitionError, advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        with pytest.raises(InvalidTransitionError):
+            advance_lifecycle(LifecycleState.DRAFT, LifecycleState.CLOSED)
+
+    def test_invalid_transition_skipping_steps(self):
+        from app.services.lifecycle import InvalidTransitionError, advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        with pytest.raises(InvalidTransitionError):
+            advance_lifecycle(LifecycleState.DRAFT, LifecycleState.ACKNOWLEDGED)
+
+    def test_invalid_transition_from_terminal_state(self):
+        from app.services.lifecycle import InvalidTransitionError, advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        with pytest.raises(InvalidTransitionError):
+            advance_lifecycle(LifecycleState.CLOSED, LifecycleState.DRAFT)
+
+    def test_valid_failure_transitions(self):
+        from app.services.lifecycle import is_valid_transition
+        from app.models.schemas import LifecycleState
+
+        assert is_valid_transition(LifecycleState.SENT, LifecycleState.NO_ACK)
+        assert is_valid_transition(LifecycleState.DRAFT, LifecycleState.REJECTED)
+        assert is_valid_transition(LifecycleState.SENT, LifecycleState.STALE_LOCATION)
+
+    def test_invalid_failure_from_wrong_state(self):
+        from app.services.lifecycle import is_valid_transition
+        from app.models.schemas import LifecycleState
+
+        assert not is_valid_transition(LifecycleState.CLOSED, LifecycleState.NO_ACK)
+        assert not is_valid_transition(LifecycleState.ARRIVING, LifecycleState.REJECTED)
+
+    def test_is_valid_transition_check(self):
+        from app.services.lifecycle import is_valid_transition
+        from app.models.schemas import LifecycleState
+
+        assert is_valid_transition(LifecycleState.DRAFT, LifecycleState.VERIFIED)
+        assert not is_valid_transition(LifecycleState.DRAFT, LifecycleState.SENT)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 10: Ledger Evidence Recording
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestLedgerEvidence:
+    """Ledger entries record evidence for each transition."""
+
+    def test_initial_ledger_has_draft_entry(self):
+        from app.services.lifecycle import create_initial_ledger
+
+        ledger = create_initial_ledger("test-123")
+        assert len(ledger) == 1
+        assert ledger[0].state.value == "DRAFT"
+        assert ledger[0].actor == "system"
+        assert "test-123" in ledger[0].evidence
+
+    def test_ledger_entry_has_timestamp(self):
+        from app.services.lifecycle import create_initial_ledger
+
+        ledger = create_initial_ledger("test-456")
+        assert ledger[0].timestamp  # non-empty
+        # Should be ISO format
+        from datetime import datetime
+        datetime.fromisoformat(ledger[0].timestamp.replace("Z", "+00:00"))
+
+    def test_ledger_entry_has_actor_and_evidence(self):
+        from app.services.lifecycle import advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        _, entry = advance_lifecycle(
+            LifecycleState.DRAFT,
+            LifecycleState.VERIFIED,
+            "paramedic",
+            "Verified on scene",
+        )
+        assert entry.actor == "paramedic"
+        assert entry.evidence == "Verified on scene"
+        assert entry.state == LifecycleState.VERIFIED
+
+    def test_ledger_serialisable(self):
+        from app.services.lifecycle import create_initial_ledger
+
+        ledger = create_initial_ledger("test-serial")
+        data = ledger[0].model_dump(mode="json")
+        assert isinstance(data, dict)
+        assert "state" in data
+        assert "actor" in data
+        assert "timestamp" in data
+        assert "evidence" in data
+
+    def test_advance_returns_entry_with_correct_fields(self):
+        from app.services.lifecycle import advance_lifecycle
+        from app.models.schemas import LifecycleState
+
+        new_state, entry = advance_lifecycle(
+            LifecycleState.VERIFIED,
+            LifecycleState.SENT,
+            "dispatcher",
+            "Packet sent to 112",
+        )
+        assert new_state == LifecycleState.SENT
+        assert entry.state == LifecycleState.SENT
+        assert entry.actor == "dispatcher"
+        assert entry.evidence == "Packet sent to 112"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 11: Contradiction Detection
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestContradictionDetection:
+    """Deterministic contradiction detection across structured fields."""
+
+    def test_consciousness_contradiction(self):
+        from app.services.contradiction import detect_contradictions
+        from app.models.schemas import (
+            MedicalContext, Severity, Verification, VerificationStatus,
+            HandoffPacket, TriageOutput, Escalation, GeoLocation,
+        )
+
+        inp = TriageInput(raw_text="Person is unconscious, not responding")
+        output = TriageOutput(
+            severity=Severity.P2_SERIOUS,
+            headline="Patient unresponsive",
+            medical_context=MedicalContext(
+                symptoms=["alert and talking"],
+                vitals_mentioned=["conscious"],
+            ),
+            noise_filtered=["Patient appears conscious"],
+            immediate_actions=["Call 112"],
+            escalation=Escalation.CALL_112_IMMEDIATELY,
+            verification=Verification(
+                status=VerificationStatus.PARTIAL,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-contradiction-1",
+                geotag=GeoLocation(lat=12.0, lng=77.0),
+                severity=Severity.P2_SERIOUS,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.CALL_112_IMMEDIATELY,
+                input_types_used=["text"],
+            ),
+            language_detected="en",
+        )
+
+        contradictions = detect_contradictions(inp, output)
+        assert len(contradictions) >= 1
+        consciousness_c = [c for c in contradictions if c.field_name == "consciousness"]
+        assert len(consciousness_c) == 1
+        assert "unconscious" in consciousness_c[0].confirm_back_question.lower()
+
+    def test_no_contradiction_when_consistent(self):
+        from app.services.contradiction import detect_contradictions
+        from app.models.schemas import (
+            MedicalContext, Severity, Verification, VerificationStatus,
+            HandoffPacket, TriageOutput, Escalation, GeoLocation,
+        )
+
+        inp = TriageInput(raw_text="Person is conscious, talking clearly")
+        output = TriageOutput(
+            severity=Severity.P3_MODERATE,
+            headline="Conscious patient with minor injury",
+            medical_context=MedicalContext(
+                symptoms=["minor cut"],
+                vitals_mentioned=["conscious", "alert"],
+            ),
+            noise_filtered=["Patient is conscious"],
+            immediate_actions=["Apply bandage"],
+            escalation=Escalation.URGENT_CARE,
+            verification=Verification(
+                status=VerificationStatus.VERIFIED,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-no-contradiction-1",
+                geotag=None,
+                severity=Severity.P3_MODERATE,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.URGENT_CARE,
+                input_types_used=["text"],
+            ),
+            language_detected="en",
+        )
+
+        contradictions = detect_contradictions(inp, output)
+        assert len(contradictions) == 0
+
+    def test_injury_side_contradiction(self):
+        from app.services.contradiction import detect_contradictions
+        from app.models.schemas import (
+            MedicalContext, Severity, Verification, VerificationStatus,
+            HandoffPacket, TriageOutput, Escalation, GeoLocation,
+        )
+
+        inp = TriageInput(raw_text="Injury on left arm, bleeding")
+        output = TriageOutput(
+            severity=Severity.P2_SERIOUS,
+            headline="Right arm injury",
+            medical_context=MedicalContext(
+                symptoms=["right arm laceration"],
+                vitals_mentioned=[],
+            ),
+            noise_filtered=[],
+            immediate_actions=["Apply pressure"],
+            escalation=Escalation.VISIT_ER,
+            verification=Verification(
+                status=VerificationStatus.PARTIAL,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-side-1",
+                geotag=None,
+                severity=Severity.P2_SERIOUS,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.VISIT_ER,
+                input_types_used=["text"],
+            ),
+            language_detected="en",
+        )
+
+        contradictions = detect_contradictions(inp, output)
+        side_c = [c for c in contradictions if c.field_name == "injury_side"]
+        assert len(side_c) == 1
+        assert "left" in side_c[0].confirm_back_question.lower()
+
+    def test_patient_count_contradiction(self):
+        from app.services.contradiction import detect_contradictions
+        from app.models.schemas import (
+            MedicalContext, Severity, Verification, VerificationStatus,
+            HandoffPacket, TriageOutput, Escalation, GeoLocation,
+        )
+
+        inp = TriageInput(raw_text="3 people injured in the accident")
+        output = TriageOutput(
+            severity=Severity.P2_SERIOUS,
+            headline="Single patient with head injury",
+            medical_context=MedicalContext(
+                symptoms=["head trauma"],
+                vitals_mentioned=[],
+            ),
+            noise_filtered=["One person hurt"],
+            immediate_actions=["Call 112"],
+            escalation=Escalation.CALL_112_IMMEDIATELY,
+            verification=Verification(
+                status=VerificationStatus.PARTIAL,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-count-1",
+                geotag=None,
+                severity=Severity.P2_SERIOUS,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.CALL_112_IMMEDIATELY,
+                input_types_used=["text"],
+            ),
+            language_detected="en",
+        )
+
+        contradictions = detect_contradictions(inp, output)
+        count_c = [c for c in contradictions if c.field_name == "patient_count"]
+        assert len(count_c) == 1
+        assert "3" in count_c[0].confirm_back_question or "three" in count_c[0].confirm_back_question.lower()
+
+    def test_apply_contradictions_sets_conflict(self):
+        from app.services.contradiction import (
+            apply_contradictions_to_verification, Contradiction,
+        )
+
+        contradictions = [
+            Contradiction(
+                field_name="consciousness",
+                fact_a="Input: unconscious",
+                fact_b="Output: conscious",
+                description="Mismatch",
+                confirm_back_question="Which is current?",
+            )
+        ]
+        status, updated, question = apply_contradictions_to_verification(
+            contradictions, "PARTIAL", []
+        )
+        assert status == "CONFLICT"
+        assert len(updated) == 1
+        assert question == "Which is current?"
+
+    def test_empty_input_no_contradictions(self):
+        from app.services.contradiction import detect_contradictions
+
+        inp = TriageInput(raw_text="")
+        # Minimal output for empty input
+        contradictions = detect_contradictions(inp, TriageOutput(
+            severity=Severity.P4_LOW,
+            headline="No data",
+            immediate_actions=["Wait"],
+            escalation=Escalation.SELF_CARE,
+            verification=Verification(
+                status=VerificationStatus.PARTIAL,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-empty",
+                geotag=None,
+                severity=Severity.P4_LOW,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.SELF_CARE,
+                input_types_used=[],
+            ),
+        ))
+        assert contradictions == []
+
+    def test_deterministic_output(self):
+        """Same input always produces same contradictions."""
+        from app.services.contradiction import detect_contradictions
+        from app.models.schemas import (
+            MedicalContext, Severity, Verification, VerificationStatus,
+            HandoffPacket, TriageOutput, Escalation, GeoLocation,
+        )
+
+        inp = TriageInput(raw_text="Person is unconscious on the ground")
+        output = TriageOutput(
+            severity=Severity.P1_CRITICAL,
+            headline="Unresponsive patient",
+            medical_context=MedicalContext(
+                symptoms=[],
+                vitals_mentioned=["conscious", "alert"],
+            ),
+            noise_filtered=[],
+            immediate_actions=["Call 112"],
+            escalation=Escalation.CALL_112_IMMEDIATELY,
+            verification=Verification(
+                status=VerificationStatus.PARTIAL,
+                checks_done=[],
+                contradictions=[],
+                uncertainties=[],
+            ),
+            handoff_packet=HandoffPacket(
+                incident_id="test-deterministic",
+                geotag=GeoLocation(lat=12.0, lng=77.0),
+                severity=Severity.P1_CRITICAL,
+                timestamp="2026-09-11T12:00:00Z",
+                timeline=[],
+                verified_facts=[],
+                unverified=[],
+                recommended_escalation=Escalation.CALL_112_IMMEDIATELY,
+                input_types_used=["text"],
+            ),
+            language_detected="en",
+        )
+
+        result1 = detect_contradictions(inp, output)
+        result2 = detect_contradictions(inp, output)
+        assert len(result1) == len(result2)
+        for c1, c2 in zip(result1, result2):
+            assert c1.field_name == c2.field_name
+            assert c1.confirm_back_question == c2.confirm_back_question

@@ -65,7 +65,7 @@ function LoadingOverlay() {
 }
 
 export default function App() {
-  const { loading, error, result, history, submit, clear } = useTriage();
+  const { loading, error, result, history, lifecycle, ledger, submit, advance, confirm, clear } = useTriage();
 
   const handleSubmit = useCallback(
     (data: {
@@ -105,7 +105,13 @@ export default function App() {
         {/* Triage result */}
         {result && (
           <>
-            <TriageCard result={result} />
+            <TriageCard
+              result={result}
+              lifecycle={lifecycle}
+              ledger={ledger}
+              onAdvanceLifecycle={advance}
+              onConfirmContradiction={confirm}
+            />
             <button
               onClick={clear}
               className="btn-secondary w-full"

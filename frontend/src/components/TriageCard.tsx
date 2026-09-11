@@ -14,12 +14,18 @@ import {
   Volume2,
   CheckCircle2,
 } from "lucide-react";
-import type { TriageResponse } from "../types";
+import type { LifecycleState, TriageResponse } from "../types";
 import VerifyBadge from "./VerifyBadge";
 import { VerifyDetails } from "./VerifyBadge";
+import LifecycleStepper from "./LifecycleStepper";
+import ContradictionRadar from "./ContradictionRadar";
 
 interface TriageCardProps {
   result: TriageResponse;
+  lifecycle?: LifecycleState;
+  ledger?: { state: LifecycleState; actor: string; timestamp: string; evidence: string }[];
+  onAdvanceLifecycle?: (toState: LifecycleState) => void;
+  onConfirmContradiction?: (correction: string) => void;
 }
 
 type Tab = "actions" | "verification" | "raw" | "handoff";
@@ -44,7 +50,13 @@ function formatDuration(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-export default function TriageCard({ result }: TriageCardProps) {
+export default function TriageCard({
+  result,
+  lifecycle = "DRAFT",
+  ledger = [],
+  onAdvanceLifecycle,
+  onConfirmContradiction,
+}: TriageCardProps) {
   const { triage, nearby_places } = result;
   const [tab, setTab] = useState<Tab>("actions");
   const [speaking, setSpeaking] = useState(false);
@@ -118,6 +130,14 @@ export default function TriageCard({ result }: TriageCardProps) {
 
       {/* Headline */}
       <h2 className="text-panic-xl font-bold">{triage.headline}</h2>
+
+      {/* Lifecycle stepper */}
+      <LifecycleStepper
+        currentState={lifecycle}
+        ledger={ledger}
+        incidentId={hp.incident_id}
+        onAdvance={onAdvanceLifecycle}
+      />
 
       {/* Tab bar */}
       <div
@@ -280,6 +300,11 @@ export default function TriageCard({ result }: TriageCardProps) {
         {/* ── VERIFICATION PIPELINE ────────────────────── */}
         {tab === "verification" && (
           <div className="space-y-5">
+            <ContradictionRadar
+              verification={ver}
+              incidentId={hp.incident_id}
+              onConfirm={onConfirmContradiction}
+            />
             <VerifyDetails
               checksDone={ver.checks_done}
               contradictions={ver.contradictions}

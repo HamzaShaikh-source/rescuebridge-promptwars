@@ -16,15 +16,36 @@ from fastapi import APIRouter, HTTPException
 from app.core.config import get_settings
 from app.core.security import sanitise_text, validate_base64_audio, validate_base64_image
 from app.models.schemas import (
+    AdvanceRequest,
+    AdvanceResponse,
+    ConfirmRequest,
+    ConfirmResponse,
     Escalation,
     GeoLocation,
     IncidentRecord,
+    LifecycleState,
     Severity,
     TriageInput,
     TriageResponse,
+    Verification,
+    VerificationCheck,
     VerificationStatus,
 )
-from app.services.firestore_service import get_incident_by_id, get_recent_incidents, save_incident
+from app.services.contradiction import (
+    apply_contradictions_to_verification,
+    detect_contradictions,
+)
+from app.services.firestore_service import (
+    get_incident_by_id,
+    get_recent_incidents,
+    save_incident,
+    update_incident,
+)
+from app.services.lifecycle import (
+    InvalidTransitionError,
+    advance_lifecycle,
+    create_initial_ledger,
+)
 from app.services.places_client import find_nearest_emergency_services
 from app.services.tts_client import synthesise_speech
 from app.services.verification_signals import build_signal_verification, gather_verification_signals
@@ -102,8 +123,21 @@ async def run_triage_pipeline(inp: TriageInput) -> dict:
     except Exception:
         logger.warning("TTS synthesis failed — frontend will use Web Speech API")
 
+    # ── Deterministic contradiction detection ──────────────────────────────
+    contradictions = detect_contradictions(inp, triage_output)
+    if contradictions:
+        new_status, new_contradictions, confirm_q = apply_contradictions_to_verification(
+            contradictions,
+            triage_output.verification.status.value,
+            list(triage_output.verification.contradictions),
+        )
+        triage_output.verification.status = VerificationStatus(new_status)
+        triage_output.verification.contradictions = new_contradictions
+        triage_output.verification.confirm_back_question = confirm_q
+
     # ── Persist to Firestore / memory ──────────────────────────────────────
     record_id = triage_output.handoff_packet.incident_id
+    initial_ledger = create_initial_ledger(record_id)
     incident_record = {
         "id": record_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -112,6 +146,8 @@ async def run_triage_pipeline(inp: TriageInput) -> dict:
         "verification_status": triage_output.verification.status.value,
         "input_types_used": triage_output.handoff_packet.input_types_used,
         "triage": triage_output.model_dump(mode="json"),
+        "lifecycle": LifecycleState.DRAFT.value,
+        "ledger": [e.model_dump(mode="json") for e in initial_ledger],
     }
     try:
         await save_incident(incident_record)
@@ -150,4 +186,110 @@ async def get_history_item(incident_id: str) -> dict:
         raise
     except Exception as e:
         logger.exception("Failed to fetch incident")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/triage/{incident_id}/advance", response_model=AdvanceResponse)
+async def advance_incident(incident_id: str, req: AdvanceRequest) -> dict:
+    """Advance an incident's lifecycle state.
+
+    Follows the valid-transition map — illegal jumps are rejected with 400.
+    """
+    try:
+        record = await get_incident_by_id(incident_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        current_state = LifecycleState(record.get("lifecycle", LifecycleState.DRAFT.value))
+
+        try:
+            new_state, entry = advance_lifecycle(
+                current_state, req.to_state, req.actor, req.evidence
+            )
+        except InvalidTransitionError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Update record
+        ledger = record.get("ledger", [])
+        ledger.append(entry.model_dump(mode="json"))
+
+        updated = await update_incident(
+            incident_id,
+            {
+                "lifecycle": new_state.value,
+                "ledger": ledger,
+            },
+        )
+
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to update incident")
+
+        return AdvanceResponse(
+            incident_id=incident_id,
+            previous_state=current_state,
+            new_state=new_state,
+            ledger=[LifecycleEntry(**e) for e in ledger],
+        ).model_dump(mode="json")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to advance lifecycle")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/triage/{incident_id}/confirm", response_model=ConfirmResponse)
+async def confirm_contradiction(incident_id: str, req: ConfirmRequest) -> dict:
+    """Resolve a contradiction by accepting the user's correction.
+
+    Updates the verification status and records the correction.
+    """
+    try:
+        record = await get_incident_by_id(incident_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        triage = record.get("triage", {})
+        ver = triage.get("verification", {})
+
+        # Remove contradictions, add correction as verified fact
+        existing_contradictions = ver.get("contradictions", [])
+        ver["contradictions"] = []
+        ver["uncertainties"] = [
+            u for u in ver.get("uncertainties", [])
+            if "contradiction" not in u.lower()
+        ]
+
+        # Add the correction
+        hp = triage.get("handoff_packet", {})
+        verified_facts = hp.get("verified_facts", [])
+        verified_facts.append(f"User correction: {req.correction}")
+        hp["verified_facts"] = verified_facts
+
+        # Downgrade status if no more contradictions
+        if not existing_contradictions:
+            ver["status"] = "PARTIAL"
+        ver["confirm_back_question"] = None
+
+        await update_incident(
+            incident_id,
+            {
+                "triage": triage,
+                "verification_status": ver["status"],
+            },
+        )
+
+        # Return updated triage
+        from app.models.schemas import TriageOutput
+        updated_triage = TriageOutput(**triage)
+
+        return ConfirmResponse(
+            triage=updated_triage,
+            message=f"Correction recorded: {req.correction}",
+        ).model_dump(mode="json")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to confirm contradiction")
         raise HTTPException(status_code=500, detail=str(e))

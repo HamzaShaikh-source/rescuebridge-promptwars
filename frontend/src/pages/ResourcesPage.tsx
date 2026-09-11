@@ -146,9 +146,9 @@ export default function ResourcesPage() {
       )}
 
       {/* List */}
-      <div className="space-y-2">
+      <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
         {places?.map((p, i) => (
-          <div key={`${p.name}-${i}`} className="panel">
+          <div key={`${p.name}-${i}`} className="panel md:flex md:flex-col md:justify-between md:h-full">
             <div className="flex items-center justify-between gap-2">
               <span className="font-bold text-[#0A0A0A]">{p.name}</span>
               <span className="label-block text-[#6E6E64] shrink-0">

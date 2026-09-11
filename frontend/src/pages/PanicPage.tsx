@@ -192,7 +192,7 @@ export default function PanicPage() {
     return (
       <div className="min-h-[78vh] flex flex-col items-center justify-center gap-6 text-center">
         <div className="label-block sig-red tracking-[0.3em]">EMERGENCY MODE</div>
-        <div className="panel-dark max-w-sm">
+<div className="panel-dark max-w-sm w-full md:max-w-xl md:px-10 md:py-10">
           <p className="display text-[1.4rem] leading-tight text-[#F5F5F0]">
             HOLD THE BUTTON 2 SECONDS TO START
           </p>
@@ -347,7 +347,7 @@ export default function PanicPage() {
         <span className="working-block" aria-hidden="true" />
         <span className="display text-[1.4rem]">WORKING…</span>
       </div>
-      <div className="panel-dark max-w-sm">
+      <div className="panel-dark max-w-sm w-full md:max-w-xl md:px-10 md:py-10">
         <p className="mono text-xs text-[#9A9A8F]">
           VERIFYING FACTS · CROSS-CHECKING PLACES · PREPARING HANDOFF PACKET
         </p>

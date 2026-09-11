@@ -56,10 +56,10 @@ export default function HomePage() {
   return (
     <div className="space-y-4">
       {/* Hero */}
-      <header className="panel-dark text-center py-6">
+      <header className="panel-dark text-center py-8 md:py-12">
         <div className="label-block text-[#9A9A8F] tracking-[0.3em]">PANIC → VERIFIED HANDOFF</div>
-        <h1 className="display text-[2.4rem] leading-tight mt-2 text-[#F5F5F0]">RESCUEBRIDGE</h1>
-        <p className="mono text-xs text-[#9A9A8F] mt-2 max-w-[320px] mx-auto">
+        <h1 className="display text-[2.4rem] md:text-[3.4rem] leading-tight mt-2 text-[#F5F5F0]">RESCUEBRIDGE</h1>
+        <p className="mono text-xs text-[#9A9A8F] mt-2 max-w-[320px] md:max-w-none mx-auto">
           TELL YOU WHAT TO DO, IN ORDER, RIGHT NOW. NO TYPING. THREE TAPS.
         </p>
       </header>

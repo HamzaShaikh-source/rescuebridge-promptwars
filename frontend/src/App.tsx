@@ -9,6 +9,7 @@ import { useTriage } from "./hooks/useTriage";
 import { useProfile } from "./hooks/useProfile";
 import { TriageContext } from "./context/TriageContext";
 import BottomNav from "./components/BottomNav";
+import Sidebar from "./components/Sidebar";
 import SosFab from "./components/SosFab";
 import HomePage from "./pages/HomePage";
 import PanicPage from "./pages/PanicPage";
@@ -37,7 +38,12 @@ export default function App() {
           Skip to main content
         </a>
 
-        <div id="main" className="max-w-[480px] mx-auto px-2 pb-28 pt-2">
+        <Sidebar />
+
+        <div
+          id="main"
+          className="max-w-[480px] mx-auto md:mx-0 md:ml-64 md:max-w-none md:px-8 lg:max-w-[980px] lg:mx-auto lg:ml-64 px-2 pb-28 pt-2"
+        >
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/panic" element={<PanicPage />} />
@@ -52,7 +58,9 @@ export default function App() {
         </div>
 
         {showFab && <SosFab />}
-        <BottomNav />
+        <div className="md:hidden">
+          <BottomNav />
+        </div>
       </div>
     </TriageContext.Provider>
   );

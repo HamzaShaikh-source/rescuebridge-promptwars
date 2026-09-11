@@ -3,7 +3,7 @@
  * Four tabs: Raw Input · Verification Pipeline · Action Card · Dispatcher Packet.
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   AlertTriangle,
   ClipboardList,
@@ -109,6 +109,20 @@ export default function TriageCard({
     { id: "handoff", label: "Dispatcher Packet", icon: FileJson },
   ];
 
+  const handleTabKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const idx = tabs.findIndex((t) => t.id === tab);
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setTab(tabs[(idx + 1) % tabs.length].id);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setTab(tabs[(idx - 1 + tabs.length) % tabs.length].id);
+      }
+    },
+    [tab, tabs],
+  );
+
   return (
     <article className="card space-y-5" aria-label="Triage result">
       {/* Header */}
@@ -143,6 +157,7 @@ export default function TriageCard({
       <div
         className="flex overflow-x-auto gap-1 bg-emergency-bg rounded-xl p-1"
         role="tablist"
+        onKeyDown={handleTabKeyDown}
       >
         {tabs.map((t) => {
           const Icon = t.icon;

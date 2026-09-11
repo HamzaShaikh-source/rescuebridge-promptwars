@@ -23,6 +23,7 @@ from app.models.schemas import (
     Escalation,
     GeoLocation,
     IncidentRecord,
+    LifecycleEntry,
     LifecycleState,
     Severity,
     TriageInput,
@@ -169,9 +170,9 @@ async def get_history(limit: int = 20) -> list[dict]:
     try:
         records = await get_recent_incidents(limit)
         return records
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to fetch history")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history/{incident_id}")
@@ -184,9 +185,9 @@ async def get_history_item(incident_id: str) -> dict:
         return record
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to fetch incident")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/triage/{incident_id}/advance", response_model=AdvanceResponse)
@@ -233,9 +234,9 @@ async def advance_incident(incident_id: str, req: AdvanceRequest) -> dict:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to advance lifecycle")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/triage/{incident_id}/confirm", response_model=ConfirmResponse)
@@ -290,6 +291,6 @@ async def confirm_contradiction(incident_id: str, req: ConfirmRequest) -> dict:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to confirm contradiction")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

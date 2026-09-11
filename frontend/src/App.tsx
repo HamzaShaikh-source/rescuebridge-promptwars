@@ -91,9 +91,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
       {loading && <LoadingOverlay />}
 
-      <div className="max-w-2xl mx-auto px-4 pb-24 space-y-6">
+      <div id="main-content" className="max-w-2xl mx-auto px-4 pb-24 space-y-6">
         <Header />
 
         {/* Hero input */}

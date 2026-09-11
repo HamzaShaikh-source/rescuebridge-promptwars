@@ -43,6 +43,25 @@
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  /* Skip-to-content link */
+  .skip-link {
+    @apply sr-only;
+  }
+  .skip-link:focus {
+    @apply fixed top-2 left-2 z-[9999] bg-white text-black px-4 py-2 rounded-lg
+           font-bold shadow-lg not-sr-only;
+  }
+
+  /* Reduced motion: kill animations */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   .btn-red {
     @apply btn-emergency bg-emergency-red text-white
            hover:bg-emergency-red-dark

@@ -101,7 +101,14 @@ export default function LifecycleStepper({
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-2" role="progressbar">
+      <div
+        className="flex items-center gap-1 overflow-x-auto pb-2"
+        role="progressbar"
+        aria-valuenow={currentIdx + 1}
+        aria-valuemin={1}
+        aria-valuemax={SUCCESS_STATES.length}
+        aria-label={`Lifecycle step ${currentIdx + 1} of ${SUCCESS_STATES.length}: ${STATE_LABELS[currentState]}`}
+      >
         {SUCCESS_STATES.map((state, i) => {
           const isPast = i < currentIdx;
           const isCurrent = state === currentState;
@@ -121,6 +128,7 @@ export default function LifecycleStepper({
                               ${isFuture ? "bg-emergency-surface2 text-emergency-muted" : ""}
                               transition-all duration-300`}
                   aria-label={`${STATE_LABELS[state]}${isCurrent ? " (current)" : ""}`}
+                  aria-current={isCurrent ? "step" : undefined}
                 >
                   {isPast ? "✓" : i + 1}
                 </div>

@@ -8,7 +8,6 @@ GET  /api/history/:id  — single incident
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -20,16 +19,10 @@ from app.models.schemas import (
     AdvanceResponse,
     ConfirmRequest,
     ConfirmResponse,
-    Escalation,
-    GeoLocation,
-    IncidentRecord,
     LifecycleEntry,
     LifecycleState,
-    Severity,
     TriageInput,
     TriageResponse,
-    Verification,
-    VerificationCheck,
     VerificationStatus,
 )
 from app.services.contradiction import (

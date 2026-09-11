@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.core.config import get_settings
-from app.models.schemas import IncidentRecord, Severity, VerificationStatus
 
 logger = logging.getLogger(__name__)
 

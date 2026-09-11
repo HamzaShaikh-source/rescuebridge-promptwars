@@ -1,0 +1,5 @@
+# Vercel python builder uses `uv lock` and chokes on the bare pytest/ruff
+# config table; deps come from requirements.txt instead.
+pyproject.toml
+.env
+.env.*

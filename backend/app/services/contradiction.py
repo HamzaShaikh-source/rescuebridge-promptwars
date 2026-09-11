@@ -7,7 +7,7 @@ from different input channels to find conflicts.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from app.models.schemas import TriageInput, TriageOutput
@@ -239,7 +239,7 @@ def detect_contradictions(
             Contradiction(
                 field_name="timing_severity",
                 fact_a=f"Input mentions event happened {' '.join(time_refs)}",
-                fact_b=f"Severity rated as P4_LOW (minor)",
+                fact_b="Severity rated as P4_LOW (minor)",
                 description=(
                     "The timing suggests this may be more recent/urgent than "
                     "the severity level indicates."

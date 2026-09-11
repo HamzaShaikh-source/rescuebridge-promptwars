@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 import httpx
 
-from app.models.schemas import GeoLocation, VerificationCheck
+from app.models.schemas import GeoLocation
 
 logger = logging.getLogger(__name__)
 

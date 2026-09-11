@@ -19,7 +19,6 @@ from google.genai import types
 from app.core.config import get_settings
 from app.models.schemas import (
     Escalation,
-    GeoLocation,
     HandoffPacket,
     MedicalContext,
     Severity,

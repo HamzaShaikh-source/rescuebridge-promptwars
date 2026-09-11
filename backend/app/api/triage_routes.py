@@ -8,9 +8,12 @@ GET  /api/history/:id  — single incident
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
+from functools import wraps
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.core.config import get_settings
 from app.core.security import sanitise_text, validate_base64_audio, validate_base64_image
@@ -47,9 +50,36 @@ from app.services.verification_signals import build_signal_verification, gather_
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Simple sliding-window rate limiter (per-client IP, 30 req / 60s)
+_RATE_LIMIT_WINDOW: int = 60
+_RATE_LIMIT_MAX: int = 30
+_rate_log: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _rate_limit(request: Request) -> None:
+    """Reject abusive clients with 429 if they exceed the window budget."""
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    window = _rate_log[client_ip]
+    while window and now - window[0] > _RATE_LIMIT_WINDOW:
+        window.popleft()
+    if len(window) >= _RATE_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="Too many requests, slow down.")
+    window.append(now)
+
+
+def _rate_limited(endpoint):
+    @wraps(endpoint)
+    async def wrapper(request: Request, *args, **kwargs):
+        _rate_limit(request)
+        return await endpoint(request, *args, **kwargs)
+
+    return wrapper
+
 
 @router.post("/triage", response_model=TriageResponse)
-async def run_triage_pipeline(inp: TriageInput) -> dict:
+@_rate_limited
+async def run_triage_pipeline(request: Request, inp: TriageInput) -> dict:
     """Full multimodal triage pipeline.
 
     1. Validate & sanitise inputs

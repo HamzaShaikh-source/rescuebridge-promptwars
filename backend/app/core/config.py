@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # LLM provider: "gemini" (production) or "local" (OpenAI-compatible dev server)
     LLM_PROVIDER: str = "gemini"
     OPENAI_BASE_URL: str = "http://127.0.0.1:8081/openai/v1"
-    OPENAI_API_KEY: str = "sk-gemini"
+    OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = ""
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"

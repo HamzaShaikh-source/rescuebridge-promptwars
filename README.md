@@ -162,10 +162,39 @@ docker compose up --build
 | 1 | Code Quality | Full type safety (TypeScript + Pydantic), strict mode, modular architecture |
 | 2 | Security | GEMINI_API_KEY server-side only, input sanitisation, HTML escaping, length limits |
 | 3 | Efficiency | Vite build, lazy loading, LRU-cached config, minimal bundle |
-| 4 | Testing | 60 unit tests: input validation, severity rules, verification logic, API endpoints |
+| 4 | Testing | 87 unit + API tests: input validation, severity rules, verification logic, lifecycle transitions, endpoint contracts |
 | 5 | Accessibility | WCAG 2.1 AA, 48px touch targets, ARIA labels, keyboard nav, high-contrast theme |
 | 6 | Google Ecosystem | Gemini Structured Output + Places API + Cloud TTS + Firestore + Cloud Run |
 | 7 | Alignment | Every input → verified structured output + action card + audio readout + handoff packet + audit log |
+
+## The Universal Bridge (Problem Statement Mapping)
+
+The challenge: *"A universal bridge between human intent and complex
+systems — converting unstructured messy inputs (voice, traffic, weather,
+news, photos, medical history) into structured, verified, life-saving actions."*
+
+| Messy input (as challenged) | Where RescueBridge turns it into structure |
+|---|---|
+| Panicked **voice** (any language) | `audio_base64` → transcription → structured triage fields |
+| Scene / injury **photos** | `image_base64` → Gemini vision analysis → injury-side, bleeding, consciousness checks |
+| Rambling **text** | `raw_text` → sanitised → structured extraction |
+| **Traffic** signals | verification signal (degrades safely offline) |
+| **Weather** signals | verification signal (degrades safely offline) |
+| **News** signals | verification signal (degrades safely offline) |
+| **Medical history** | ICE profile → `medical_context` → severity overrides |
+| **Location** | `geolocation` → nearest ER / hospital / 112 context |
+
+Every one of those inputs lands in the same three outputs: a **verified
+triage packet**, an **action plan**, and a **dispatch-ready 112 handoff**.
+
+## Live Deployments
+
+| Layer | URL |
+|---|---|
+| Frontend (vercel) | https://rescuebridge-44s7kkp8k-hamzashaikh-sources-projects.vercel.app |
+| Backend API (vercel) | https://rescuebridge-htk2tnb4w-hamzashaikh-sources-projects.vercel.app |
+| API health check | `GET /api/health` — `{"status":"ok"}` |
+| Swagger docs | `GET /api/docs` on the backend URL |
 
 ## Deployment to Cloud Run
 

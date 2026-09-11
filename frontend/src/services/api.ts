@@ -11,7 +11,10 @@ import type {
   TriageResponse,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`;
@@ -57,6 +60,46 @@ export async function advanceLifecycle(
     method: "POST",
     body: JSON.stringify({ to_state: toState, actor, evidence }),
   });
+}
+
+export type PlaceCategory =
+  | "hospital"
+  | "blood_bank"
+  | "pharmacy"
+  | "police"
+  | "fuel"
+  | "ambulance";
+
+export interface PlaceResult {
+  name: string;
+  category: PlaceCategory;
+  address: string;
+  distance_m: number;
+  walk_min: number;
+  drive_min: number;
+  open_now_24h: boolean | null;
+  phone: string | null;
+  map_url: string | null;
+  source: "google" | "mock";
+}
+
+export async function getPlaces(params: {
+  lat: number;
+  lng: number;
+  category: PlaceCategory;
+  limit?: number;
+}): Promise<PlaceResult[]> {
+  const qs = new URLSearchParams({
+    lat: String(params.lat),
+    lng: String(params.lng),
+    category: params.category,
+    ...(params.limit ? { limit: String(params.limit) } : {}),
+  });
+  return request<PlaceResult[]>(`/api/places?${qs.toString()}`);
+}
+
+export async function getIncidentById(id: string): Promise<IncidentRecord> {
+  return request<IncidentRecord>(`/api/history/${id}`);
 }
 
 export async function confirmContradiction(

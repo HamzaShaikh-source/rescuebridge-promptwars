@@ -18,6 +18,7 @@
     margin: 0;
     min-height: 100vh;
     font-family:
+      "IBM Plex Sans",
       system-ui,
       -apple-system,
       "Segoe UI",
@@ -29,88 +30,276 @@
 
   /* High-contrast emergency focus ring */
   :focus-visible {
-    outline: 3px solid #FBBF24;
+    outline: 4px solid #0057ff;
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background: #0057ff;
+    color: #f5f5f0;
   }
 }
 
 @layer components {
-  /* Panic-proof touch target: minimum 48x48 */
-  .btn-emergency {
-    @apply min-h-touch min-w-touch rounded-xl font-bold text-panic-lg
-           flex items-center justify-center gap-3
-           transition-all duration-150 active:scale-95
-           disabled:opacity-50 disabled:cursor-not-allowed;
+  /* ── Brutalist reset: sharp corners, no shadow, instant motion ──── */
+  .brutal *,
+  .brutal *::before,
+  .brutal *::after {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border-color: #444440 !important;
+    transition-duration: 80ms !important;
+  }
+  /* The SOS pill survives the reset — the one rounded thing in the app */
+  .brutal [data-round] {
+    border-radius: 9999px !important;
   }
 
-  /* Skip-to-content link */
+  /* ── Type ─────────────────────────────────────────────────────── */
+  .display {
+    font-family: "Archivo Black", system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .label-block {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ── Panels ───────────────────────────────────────────────────── */
+  .panel {
+    background: #f5f5f0;
+    color: #0a0a0a;
+    border: 3px solid #0a0a0a;
+    padding: 1rem;
+  }
+  .panel-dark {
+    background: #0a0a0a;
+    color: #f5f5f0;
+    border: 3px solid #f5f5f0;
+    padding: 1rem;
+  }
+
+  /* ── Brutal buttons ───────────────────────────────────────────── */
+  .brutal-input {
+    width: 100%;
+    min-height: 48px;
+    background: #f5f5f0;
+    color: #0a0a0a;
+    border: 3px solid #0a0a0a;
+    padding: 0.65rem 0.75rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.9rem;
+  }
+  .brutal-input:focus {
+    outline: 4px solid #0057ff;
+    outline-offset: 1px;
+  }
+  .btn-brutal {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border: 3px solid currentColor;
+    padding: 1rem 1.25rem;
+    min-height: 64px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    --tw-active: scale(0.98);
+  }
+  .btn-brutal:active {
+    transform: var(--tw-active);
+  }
+  .btn-brutal:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-brutal-red {
+    background: #ff1f0f;
+    color: #f5f5f0;
+    border-color: #f5f5f0;
+  }
+  .btn-brutal-dark {
+    background: #0a0a0a;
+    color: #f5f5f0;
+    border-color: #f5f5f0;
+  }
+  .btn-brutal-paper {
+    background: #f5f5f0;
+    color: #0a0a0a;
+    border-color: #0a0a0a;
+  }
+  .btn-brutal-blue {
+    background: #0057ff;
+    color: #f5f5f0;
+    border-color: #f5f5f0;
+  }
+  .btn-brutal-amber {
+    background: #ffb000;
+    color: #0a0a0a;
+    border-color: #0a0a0a;
+  }
+
+  /* ── SOS pill ─────────────────────────────────────────────────── */
+  .sos-pill {
+    border-radius: 9999px;
+    background: #ff1f0f;
+    color: #f5f5f0;
+    border: 4px solid #f5f5f0;
+    font-family: "Archivo Black", system-ui, sans-serif;
+    font-size: 1rem;
+    width: 100%;
+    min-height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .sos-pill:active {
+    background: #ff3b2e;
+  }
+
+  /* ── Bottom nav ───────────────────────────────────────────────── */
+  .tabbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: #0a0a0a;
+    border-top: 3px solid #f5f5f0;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .tabbar-link {
+    flex: 1 1 0;
+    min-height: 68px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #9a9a8f;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-right: 2px solid #2a2a28;
+    text-decoration: none;
+  }
+  .tabbar-link:last-child {
+    border-right: none;
+  }
+  .tabbar-link[data-active="true"],
+  .tabbar-active {
+    color: #f5f5f0;
+    background: #2a2a28;
+    border-top: 3px solid #ff1f0f;
+  }
+
+  /* ── WORKING loader ───────────────────────────────────────────── */
+  .working-frame {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: "Archivo Black", system-ui, sans-serif;
+    letter-spacing: 0.02em;
+  }
+  .working-block {
+    width: 22px;
+    height: 22px;
+    background: #ffb000;
+    border: 2px solid #f5f5f0;
+    animation: working-spin 0.6s steps(4, end) infinite;
+  }
+  @keyframes working-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* ── Waveform ─────────────────────────────────────────────────── */
+  @keyframes pulse-wave {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+  .waveform-bar {
+    width: 4px;
+    background: #ff1f0f;
+    border: 1px solid #0a0a0a;
+    animation: pulse-wave 0.6s ease-in-out infinite;
+  }
+
+  /* ── Skip link ────────────────────────────────────────────────── */
   .skip-link {
-    @apply sr-only;
+    position: absolute;
+    left: -9999px;
+    top: 0;
   }
   .skip-link:focus {
-    @apply fixed top-2 left-2 z-[9999] bg-white text-black px-4 py-2 rounded-lg
-           font-bold shadow-lg not-sr-only;
+    left: 8px;
+    top: 8px;
+    z-index: 9999;
+    background: #f5f5f0;
+    color: #0a0a0a;
+    border: 3px solid #0a0a0a;
+    padding: 0.75rem 1rem;
+    font-weight: 900;
   }
 
-  /* Reduced motion: kill animations */
+  /* ── Signals ──────────────────────────────────────────────────── */
+  .sig-red { color: #ff1f0f; }
+  .sig-amber { color: #ffb000; }
+  .sig-green { color: #00c853; }
+  .sig-blue { color: #0057ff; }
+  .sig-hot { color: #ff00aa; }
+
+  /* Legacy emergency tokens → brutalist mapping (old components keep compiling) */
+  .card { background: #f5f5f0; color: #0a0a0a; border: 3px solid #0a0a0a; padding: 1rem; }
+  .btn-emergency { background: #ff1f0f; color: #f5f5f0; border: 3px solid #f5f5f0; padding: 1rem 1.25rem; min-height: 64px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 0; }
+  .btn-red { background: #ff1f0f; color: #f5f5f0; border: 3px solid #f5f5f0; padding: 1rem 1.25rem; min-height: 64px; width: 100%; border-radius: 0; }
+  .btn-secondary { background: #2a2a28; color: #f5f5f0; border: 3px solid #f5f5f0; padding: 0.75rem 1rem; border-radius: 0; }
+  .btn-ghost { background: transparent; color: #f5f5f0; border: 3px solid #f5f5f0; padding: 0.75rem 1rem; border-radius: 0; }
+  .vibe { background: #f5f5f0; color: #0a0a0a; border: 3px solid #0a0a0a; padding: 1rem; border-radius: 0; }
+  .bg-emergency-bg { background-color: #0a0a0a; color: #f5f5f0; }
+  .bg-emergency-surface { background-color: #f5f5f0; color: #0a0a0a; }
+  .bg-emergency-surface2 { background-color: #2a2a28; color: #f5f5f0; }
+  .text-emergency-text { color: #0a0a0a; }
+  .text-emergency-muted { color: #6b6b60; }
+  .bg-emergency-red { background-color: #ff1f0f; }
+  .bg-emergency-orange { background-color: #ffb000; }
+  .bg-emergency-yellow { background-color: #ffb000; }
+  .bg-emergency-green { background-color: #00c853; }
+  .bg-emergency-blue { background-color: #0057ff; }
+  .text-emergency-red { color: #ff1f0f; }
+  .text-emergency-orange { color: #ffb000; }
+  .text-emergency-yellow { color: #ffb000; }
+  .text-emergency-green { color: #00c853; }
+  .text-emergency-blue { color: #0057ff; }
+  .text-emergency-muted { color: #8a8a7e; }
+
+  /* Reduced motion: kill all animation */
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
     }
-  }
-
-  .btn-red {
-    @apply btn-emergency bg-emergency-red text-white
-           hover:bg-emergency-red-dark
-           shadow-lg shadow-red-900/30;
-  }
-
-  .btn-secondary {
-    @apply btn-emergency bg-emergency-surface2 text-emergency-text
-           hover:bg-emergency-surface2/80
-           border border-white/10;
-  }
-
-  .card {
-    @apply bg-emergency-surface rounded-2xl p-6 shadow-xl border border-white/5;
-  }
-
-  /* Severity badge colours */
-  .badge-p1 {
-    @apply bg-emergency-red text-white;
-  }
-  .badge-p2 {
-    @apply bg-emergency-orange text-white;
-  }
-  .badge-p3 {
-    @apply bg-emergency-yellow text-black;
-  }
-  .badge-p4 {
-    @apply bg-emergency-green text-white;
-  }
-
-  /* Verification badge */
-  .badge-verified {
-    @apply bg-emergency-green/20 text-emergency-green border border-emergency-green/30;
-  }
-  .badge-partial {
-    @apply bg-emergency-yellow/20 text-emergency-yellow border border-emergency-yellow/30;
-  }
-  .badge-conflict {
-    @apply bg-emergency-red/20 text-emergency-red border border-emergency-red/30;
-  }
-
-  /* Waveform animation */
-  @keyframes pulse-wave {
-    0%, 100% { transform: scaleY(0.3); }
-    50% { transform: scaleY(1); }
-  }
-
-  .waveform-bar {
-    @apply w-1 bg-emergency-red rounded-full;
-    animation: pulse-wave 0.6s ease-in-out infinite;
   }
 }

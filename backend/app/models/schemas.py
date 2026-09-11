@@ -173,6 +173,34 @@ class NearbyPlace(BaseModel):
     map_url: Optional[str] = None
 
 
+class PlaceCategory(str, Enum):
+    """Supported place categories for the /api/places endpoint."""
+
+    HOSPITAL = "hospital"
+    BLOOD_BANK = "blood_bank"
+    PHARMACY = "pharmacy"
+    POLICE = "police"
+    FUEL = "fuel"
+    AMBULANCE = "ambulance"
+
+
+class PlaceResult(BaseModel):
+    """A single nearby place — additive schema for GET /api/places."""
+
+    name: str
+    category: PlaceCategory
+    address: str
+    distance_m: float = Field(description="Straight-line distance in metres")
+    walk_min: int = Field(description="Estimated walking minutes")
+    drive_min: int = Field(description="Estimated driving minutes")
+    open_now_24h: Optional[bool] = Field(
+        None, description="Whether the place is open 24/7 (when known)"
+    )
+    phone: Optional[str] = None
+    map_url: Optional[str] = None
+    source: str = Field("google", description="'google' for live Places, 'mock' for fallback")
+
+
 # ── History ────────────────────────────────────────────────────────────────
 
 class LifecycleEntry(BaseModel):

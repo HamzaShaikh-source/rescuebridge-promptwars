@@ -109,6 +109,15 @@ export function useTriage() {
     }
   }, [state.result]);
 
+  const refreshHistory = useCallback(async () => {
+    try {
+      const h = await getHistory(20);
+      setState((s) => ({ ...s, history: h }));
+    } catch {
+      /* silent — history is best-effort */
+    }
+  }, []);
+
   const clear = useCallback(() => {
     setState((s) => ({
       ...s,
@@ -119,5 +128,5 @@ export function useTriage() {
     }));
   }, []);
 
-  return { ...state, submit, advance, confirm, clear };
+  return { ...state, submit, advance, confirm, clear, refreshHistory };
 }

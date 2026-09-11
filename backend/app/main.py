@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.places_routes import router as places_router
 from app.api.triage_routes import router as triage_router
 from app.core.config import get_settings
 
@@ -40,6 +41,7 @@ app.add_middleware(
 
 # Mount routes
 app.include_router(triage_router, prefix="/api")
+app.include_router(places_router, prefix="/api")
 
 
 @app.get("/api/health")

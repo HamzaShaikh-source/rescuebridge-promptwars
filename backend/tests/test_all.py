@@ -994,3 +994,57 @@ class TestContradictionDetection:
         for c1, c2 in zip(result1, result2):
             assert c1.field_name == c2.field_name
             assert c1.confirm_back_question == c2.confirm_back_question
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 12: Places endpoint (additive /api/places)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestPlacesEndpoint:
+    """Tests for the /api/places resource endpoint."""
+
+    def test_no_maps_key_returns_mock(self):
+        from app.core.config import get_settings
+        from app.core import config as config_mod
+
+        config_mod.get_settings.cache_clear()
+        # No Maps key in tests → deterministic mock, never 500
+        assert not get_settings().GOOGLE_MAPS_API_KEY
+
+    def test_places_returns_list(self, client):
+        resp = client.get("/api/places", params={"lat": 12.9716, "lng": 77.5946, "category": "hospital"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        first = data[0]
+        for field in ("name", "category", "address", "distance_m", "walk_min", "drive_min", "source", "map_url"):
+            assert field in first, f"missing {field}"
+        assert first["source"] == "mock"
+        assert first["category"] == "hospital"
+
+    def test_places_sorted_by_distance(self, client):
+        resp = client.get("/api/places", params={"lat": 12.9716, "lng": 77.5946, "category": "pharmacy", "limit": 3})
+        data = resp.json()
+        distances = [p["distance_m"] for p in data]
+        assert distances == sorted(distances)
+
+    def test_places_supports_all_categories(self, client):
+        from app.models.schemas import PlaceCategory
+        for cat in PlaceCategory:
+            resp = client.get("/api/places", params={"lat": 12.9716, "lng": 77.5946, "category": cat.value})
+            assert resp.status_code == 200
+            assert isinstance(resp.json(), list)
+
+    def test_places_limit_capped(self, client):
+        resp = client.get("/api/places", params={"lat": 12.9716, "lng": 77.5946, "category": "fuel", "limit": 99})
+        assert resp.status_code == 422  # limit is constrained to 1..10
+
+    def test_places_bad_category_422(self, client):
+        resp = client.get("/api/places", params={"lat": 12.9716, "lng": 77.5946, "category": "nonsense"})
+        assert resp.status_code == 422
+
+    def test_places_bad_lat_422(self, client):
+        resp = client.get("/api/places", params={"lat": 999, "lng": 0, "category": "hospital"})
+        assert resp.status_code == 422

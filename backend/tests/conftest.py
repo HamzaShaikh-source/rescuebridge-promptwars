@@ -29,6 +29,8 @@ def _no_gemini_in_tests(monkeypatch):
     monkeypatch.setenv("GOOGLE_TTS_CREDENTIALS_PATH", "")
     monkeypatch.setenv("FIRESTORE_PROJECT_ID", "")
     monkeypatch.setenv("FIRESTORE_CREDENTIALS_PATH", "")
+    # Tests must never hit the live local/OpenAI LLM either
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
     # Invalidate cached Settings so it picks up the empty env
     config_mod.get_settings.cache_clear()
     yield

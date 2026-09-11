@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-gemini"
     OPENAI_MODEL: str = ""
 
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     BACKEND_ENV: str = "development"
